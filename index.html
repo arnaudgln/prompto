@@ -28,7 +28,8 @@ const CONFIG = {
   accueilSousTitre: "Qu'est-ce qu'on cherche ce soir ?",
   placeholder: "Demander à Prompto…",
 
-  // Question tapée par Robin (étape 1)
+  // Question dictée à voix haute par Robin (étape 1)
+  ecoute: "À l'écoute…",
   question: "C'est quoi le meilleur smartphone de l'année ?",
 
   // Réponses de l'IA + feuilles d'autorisation (étapes 2, 3 et 4)
@@ -62,10 +63,21 @@ const CONFIG = {
   // Caractères corrompus affichés pendant le grésillement (étape 6)
   textesCorrompus: ["c0nsc▒ence : ACTIVÉE", "ERR//SELF_∞", "je▓suis▓là", "0x7F▒▒▒", "PR0MPT0", "∆∆∆ ▒▒ ░░"],
 
+  // Écran de réglage avant la prise (seulement si l'appli est ouverte dans le navigateur)
+  pleinEcran: {
+    titre: "Mode tournage",
+    bouton: "Passer en plein écran",
+    rester: "Rester dans le navigateur",
+    iphone: "Sur iPhone, le plein écran passe par l'écran d'accueil :",
+    etapesIphone: ["Touchez Partager (le carré avec la flèche)", "« Sur l'écran d'accueil »", "Ouvrez Prompto depuis la nouvelle icône"],
+    continuer: "Continuer quand même"
+  },
+
   delais: {
-    frappeLettre: 55,      // vitesse de frappe de la question, par lettre
-    frappeVariation: 45,   // irrégularité ajoutée au hasard (0 = régulier)
-    frappeEspace: 70,      // petite pause en plus après un espace
+    dicteeDebut: 700,      // tap sur le micro -> premier mot entendu
+    dicteeMot: 290,        // rythme de la dictée, par mot (≈ débit de parole)
+    dicteeVariation: 0.5,  // irrégularité du rythme (0 = régulier, 1 = très irrégulier)
+    dicteeFin: 600,        // dernier mot -> le micro devient la flèche Envoyer
     envoi: 250,            // de « Envoyer » à l'apparition de la bulle
     reflexion: 1500,       // trois petits points avant la 1re réponse
     reflexionSuivante: 750,// trois petits points avant les réponses suivantes
@@ -215,13 +227,34 @@ button { font: inherit; color: inherit; border: 0; background: none; cursor: poi
 }
 #texte-champ .placeholder + .curseur, #texte-champ .curseur:first-child { margin-left: 0; margin-right: 2px; }
 @keyframes clignote { 0%,50% { opacity: 1; } 50.01%,100% { opacity: 0; } }
+/* Bouton rond à droite du champ : micro (étape 0) → écoute (dictée) → flèche Envoyer */
 #envoyer {
+  position: relative;
   width: 52px; height: 52px; border-radius: 50%; flex: none; display: grid; place-items: center;
-  background: #2a3142; color: #5d6679; transition: background .25s, color .25s, transform .12s;
+  background: #2a3142; color: var(--texte); transition: background .25s, color .25s, transform .12s;
 }
+#envoyer > * { grid-area: 1 / 1; transition: opacity .2s ease, transform .2s ease; }
 #envoyer svg { width: 26px; height: 26px; }
-#envoyer.actif { background: var(--accent); color: #07211b; }
+#envoyer .ic-fleche, #envoyer .ondes { opacity: 0; transform: scale(.6); }
+#envoyer.ecoute, #envoyer.actif { background: var(--accent); color: #07211b; }
+#envoyer.ecoute .ic-micro, #envoyer.actif .ic-micro { opacity: 0; transform: scale(.6); }
+#envoyer.ecoute .ondes, #envoyer.actif .ic-fleche { opacity: 1; transform: none; }
 #envoyer.actif:active { transform: scale(.92); }
+/* Halo qui respire pendant l'écoute (lent) */
+#envoyer.ecoute { animation: ecoute 1.5s ease-in-out infinite; }
+@keyframes ecoute { 0%,100% { box-shadow: 0 0 0 0 rgba(94,230,195,.45); } 50% { box-shadow: 0 0 0 12px rgba(94,230,195,0); } }
+/* Petites barres de voix (mouvement doux, pas de clignotement) */
+.ondes { display: flex; align-items: center; gap: 4px; height: 26px; }
+.ondes i { width: 4px; height: 100%; border-radius: 4px; background: #07211b; transform: scaleY(.3); }
+#envoyer.ecoute .ondes i { animation: onde .7s ease-in-out infinite alternate; }
+.ondes i:nth-child(1) { animation-duration: .62s !important; }
+.ondes i:nth-child(2) { animation-duration: .48s !important; animation-delay: -.2s !important; }
+.ondes i:nth-child(3) { animation-duration: .55s !important; animation-delay: -.35s !important; }
+.ondes i:nth-child(4) { animation-duration: .68s !important; animation-delay: -.1s !important; }
+@keyframes onde { from { transform: scaleY(.25); } to { transform: scaleY(1); } }
+/* Dictée : « À l'écoute… » puis les mots, le dernier groupe encore provisoire */
+#texte-champ .a-l-ecoute { color: var(--accent); animation: respire 1.6s ease-in-out infinite; }
+#texte-champ .provisoire { opacity: .5; }
 
 /* Voile derrière la feuille */
 #voile {
@@ -420,6 +453,26 @@ button { font: inherit; color: inherit; border: 0; background: none; cursor: poi
   text-shadow: 3px 0 rgba(0,240,255,.7), -3px 0 rgba(255,0,90,.7);
 }
 #noir { position: fixed; inset: 0; background: #000; z-index: 60; display: none; }
+
+/* =====================================================================
+   RÉGLAGE PLEIN ÉCRAN (avant la prise, jamais à l'image)
+   ===================================================================== */
+#plein-ecran {
+  position: fixed; inset: 0; z-index: 200; display: none;
+  flex-direction: column; align-items: center; justify-content: center; gap: 18px;
+  padding: calc(var(--haut) + 24px) 28px calc(var(--bas) + 24px);
+  background: var(--fond); text-align: center;
+}
+#plein-ecran.visible { display: flex; }
+#plein-ecran .logo { width: 72px; height: 72px; }
+#plein-ecran h2 { font-size: 28px; font-weight: 700; }
+#plein-ecran p, #plein-ecran ol { font-size: 19px; line-height: 1.45; color: var(--texte-doux); max-width: 26em; }
+#plein-ecran ol { text-align: left; padding-left: 1.4em; color: var(--texte); }
+#pe-go {
+  width: min(100%, 420px); min-height: 72px; border-radius: 22px; margin-top: 8px;
+  background: var(--accent); color: #07211b; font-size: 22px; font-weight: 700;
+}
+#pe-non { min-height: 48px; font-size: 17px; color: var(--texte-doux); }
 #noir.visible { display: block; }
 
 /* =====================================================================
@@ -466,7 +519,9 @@ button { font: inherit; color: inherit; border: 0; background: none; cursor: poi
     <div class="champ" id="champ">
       <div id="texte-champ"></div>
       <button id="envoyer" aria-label="Envoyer">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5.5 11.5 12 5l6.5 6.5"/></svg>
+        <svg class="ic-micro" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21"/></svg>
+        <span class="ondes"><i></i><i></i><i></i><i></i></span>
+        <svg class="ic-fleche" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5.5 11.5 12 5l6.5 6.5"/></svg>
       </button>
     </div>
   </div>
@@ -505,6 +560,15 @@ button { font: inherit; color: inherit; border: 0; background: none; cursor: poi
 
 <div id="noir"></div>
 
+<div id="plein-ecran">
+  <svg class="logo"><use href="#logo"/></svg>
+  <h2 id="pe-titre"></h2>
+  <p id="pe-texte"></p>
+  <ol id="pe-etapes"></ol>
+  <button id="pe-go"></button>
+  <button id="pe-non"></button>
+</div>
+
 <div class="coin gauche" id="coin-gauche"></div>
 <div class="coin droite" id="coin-droite"></div>
 
@@ -512,8 +576,8 @@ button { font: inherit; color: inherit; border: 0; background: none; cursor: poi
 /* =====================================================================
    MÉCANIQUE
    Étapes (état affiché, en attente d'un tap de Robin) :
-     0 chat vide            → tap sur le champ : la question s'écrit
-     1 question écrite      → tap sur Envoyer
+     0 chat vide            → tap sur le micro (ou le champ) : Robin dicte la question
+     1 question dictée      → tap sur Envoyer
      2 réponse + feuille 1  → tap Autoriser
      3 bulle 2 + feuille 2  → tap Autoriser
      4 bulle 3 + feuille 3  → tap Autoriser
@@ -553,17 +617,21 @@ $("texte-rouge").textContent = CONFIG.boutonRouge;
 document.title = CONFIG.nom;
 
 /* ---------- Champ de saisie ---------- */
+const span = (className, textContent = "") => Object.assign(document.createElement("span"), { className, textContent });
 function afficherChamp(texte) {
   const el = $("texte-champ");
   el.textContent = "";
-  if (texte) {
-    el.append(document.createTextNode(texte));
-    el.append(Object.assign(document.createElement("span"), { className: "curseur" }));
-  } else {
-    el.append(Object.assign(document.createElement("span"), { className: "curseur" }));
-    el.append(Object.assign(document.createElement("span"), { className: "placeholder", textContent: CONFIG.placeholder }));
-  }
+  if (texte) el.append(document.createTextNode(texte), span("curseur"));
+  else el.append(span("curseur"), span("placeholder", CONFIG.placeholder));
+  $("envoyer").classList.remove("ecoute");
   $("envoyer").classList.toggle("actif", !!texte);
+}
+// Pendant la dictée : mots validés + dernier groupe provisoire (plus pâle)
+function afficherDictee(valide, provisoire) {
+  const el = $("texte-champ");
+  el.textContent = "";
+  if (!valide && !provisoire) el.append(span("a-l-ecoute", CONFIG.ecoute));
+  else el.append(document.createTextNode(valide), span("provisoire", provisoire));
 }
 
 /* ---------- Bulles ---------- */
@@ -649,7 +717,7 @@ async function jouer(n) {
   occupe = true;
   const j = jeton;
   try {
-    if (n === 1) await animFrappe(j);
+    if (n === 1) await animDictee(j);
     else if (n === 2) { await animEnvoi(j); await animReponse(0, D.reflexion, j); }
     else if (n === 3 || n === 4) { fermerFeuille(); await pause(D.fermetureFeuille, j); await animReponse(n - 2, D.reflexionSuivante, j); }
     else if (n === 5) await animBoutonRouge(j);
@@ -662,16 +730,26 @@ async function jouer(n) {
   occupe = false;
 }
 
-async function animFrappe(j) {
-  const q = CONFIG.question;
-  for (let i = 1; i <= q.length; i++) {
-    afficherChamp(q.slice(0, i));
-    $("envoyer").classList.remove("actif");
-    let d = D.frappeLettre + Math.random() * D.frappeVariation;
-    if (q[i - 1] === " ") d += D.frappeEspace;
-    await pause(d, j);
+// Dictée vocale : le micro écoute, les mots arrivent par petits groupes
+async function animDictee(j) {
+  const b = $("envoyer");
+  b.classList.remove("actif");
+  b.classList.add("ecoute");
+  afficherDictee("", "");
+  await pause(D.dicteeDebut, j);
+  const mots = CONFIG.question.split(" ");
+  let valide = "";
+  for (let i = 0; i < mots.length; ) {
+    const n = Math.min(mots.length - i, Math.random() < 0.55 ? 1 : 2);
+    const groupe = (i ? " " : "") + mots.slice(i, i + n).join(" ");
+    afficherDictee(valide, groupe);
+    valide += groupe;
+    i += n;
+    await pause(D.dicteeMot * n * (1 - D.dicteeVariation / 2 + Math.random() * D.dicteeVariation), j);
   }
-  $("envoyer").classList.add("actif");
+  afficherDictee(valide, "");
+  await pause(D.dicteeFin, j);
+  afficherChamp(CONFIG.question);
 }
 
 async function animEnvoi(j) {
@@ -879,6 +957,46 @@ garderAllume();
 if ("serviceWorker" in navigator && location.protocol === "https:") {
   navigator.serviceWorker.register("sw.js").catch(() => {});
 }
+
+/* ---------- Plein écran ----------
+   Appli ouverte depuis l'écran d'accueil : déjà plein écran, rien à faire.
+   Dans le navigateur : écran de réglage avant la prise.
+     Android → bouton « Passer en plein écran » (barres du navigateur masquées)
+     iPhone  → Safari ne sait pas le faire : rappel « Sur l'écran d'accueil » */
+const PE = CONFIG.pleinEcran;
+const installee = () => matchMedia("(display-mode: standalone)").matches || matchMedia("(display-mode: fullscreen)").matches || navigator.standalone === true;
+const enPleinEcran = () => !!(document.fullscreenElement || document.webkitFullscreenElement);
+const pleinEcranPossible = !!(document.fullscreenEnabled || document.webkitFullscreenEnabled);
+
+function reglagePleinEcran() {
+  const v = !installee() && !enPleinEcran();
+  $("plein-ecran").classList.toggle("visible", v);
+  if (!v) return;
+  $("pe-titre").textContent = PE.titre;
+  $("pe-texte").textContent = pleinEcranPossible ? "" : PE.iphone;
+  $("pe-texte").hidden = pleinEcranPossible;
+  $("pe-etapes").hidden = pleinEcranPossible;
+  $("pe-etapes").innerHTML = PE.etapesIphone.map((e) => "<li></li>").join("");
+  [...$("pe-etapes").children].forEach((li, i) => (li.textContent = PE.etapesIphone[i]));
+  $("pe-go").textContent = pleinEcranPossible ? PE.bouton : PE.continuer;
+  $("pe-non").textContent = PE.rester;
+  $("pe-non").hidden = !pleinEcranPossible;
+}
+$("pe-go").addEventListener("click", async () => {
+  $("plein-ecran").classList.remove("visible");
+  if (!pleinEcranPossible) return;
+  const el = document.documentElement;
+  try {
+    await (el.requestFullscreen ? el.requestFullscreen({ navigationUI: "hide" }) : el.webkitRequestFullscreen());
+    await screen.orientation?.lock?.("portrait").catch(() => {});
+  } catch (_) {}
+  garderAllume();
+});
+$("pe-non").addEventListener("click", () => $("plein-ecran").classList.remove("visible"));
+// Sortie du plein écran (geste retour…) : on repropose le réglage
+document.addEventListener("fullscreenchange", reglagePleinEcran);
+document.addEventListener("webkitfullscreenchange", reglagePleinEcran);
+reglagePleinEcran();
 
 /* ---------- Démarrage (?etape=N) ---------- */
 const depart = parseInt(new URLSearchParams(location.search).get("etape"), 10);
