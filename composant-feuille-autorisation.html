@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Composant : feuille d'autorisation (Prompto)</title>
+<style>
+/* Copie exacte du composant utilisé dans index.html (téléphone de Robin).
+   À coller tel quel dans les écrans de la tour de contrôle. */
+/* =====================================================================
+   ▼▼▼  COMPOSANT PARTAGÉ : FEUILLE D'AUTORISATION  (préfixe « fa- »)  ▼▼▼
+   Même style à réutiliser sur les écrans de la tour de contrôle.
+   Une copie autonome se trouve dans composant-feuille-autorisation.html
+
+   Structure HTML :
+     <div class="fa">                         ← feuille (ajouter .fa--ouverte pour l'afficher)
+       <div class="fa-poignee"></div>          ← petite barre de saisie (mobile)
+       <div class="fa-entete">
+         <svg class="fa-icone">…</svg>         ← icône de l'appli qui demande
+         <div class="fa-appli">Prompto</div>
+       </div>
+       <h2 class="fa-titre">Autoriser … ?</h2>
+       <p class="fa-details">Petite ligne grise</p>
+       <div class="fa-actions">
+         <button class="fa-btn fa-btn--principal">Toujours autoriser</button>
+         <button class="fa-btn fa-btn--secondaire">Autoriser une fois</button>
+         <button class="fa-refuser">Refuser</button>
+       </div>
+     </div>
+
+   Variantes :
+     .fa                → feuille qui monte du bas (téléphone)
+     .fa.fa--fenetre    → fenêtre centrée aux coins arrondis (écran d'ordinateur)
+     --fa-echelle       → multiplie toutes les tailles (ex. 1.6 sur un grand écran)
+   ===================================================================== */
+.fa {
+  --fa-echelle: 1;
+  --fa-fond-haut: #eef1f6;      /* gris très clair : éclaire le visage sans brûler */
+  --fa-fond-bas: #dfe4ec;
+  --fa-texte: #121722;
+  --fa-texte-doux: #5b6578;
+  --fa-principal: #2f5bea;      /* bleu « système », sans marque */
+  --fa-principal-texte: #f3f6ff;
+  --fa-secondaire: #cdd4e1;
+  --fa-secondaire-texte: #1a2132;
+  --fa-rayon: calc(30px * var(--fa-echelle));
+
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 30;
+  margin: 0 auto; max-width: 620px;
+  padding: calc(12px * var(--fa-echelle)) calc(22px * var(--fa-echelle))
+           calc(var(--bas, 0px) + 18px * var(--fa-echelle));
+  background: linear-gradient(180deg, var(--fa-fond-haut), var(--fa-fond-bas));
+  color: var(--fa-texte);
+  border-radius: var(--fa-rayon) var(--fa-rayon) 0 0;
+  box-shadow: 0 -18px 60px rgba(0,0,0,.45);
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  text-align: center;
+  transform: translateY(105%);
+  transition: transform .42s cubic-bezier(.2,.85,.25,1);
+}
+.fa.fa--ouverte { transform: translateY(0); }
+
+/* Petite barre en haut de la feuille (5 px : jamais de trait de 1 px) */
+.fa-poignee {
+  width: calc(44px * var(--fa-echelle)); height: calc(5px * var(--fa-echelle));
+  border-radius: 99px; background: #b4bccb; margin: 0 auto calc(16px * var(--fa-echelle));
+}
+.fa-entete { display: flex; align-items: center; justify-content: center; gap: calc(10px * var(--fa-echelle)); }
+.fa-icone { width: calc(46px * var(--fa-echelle)); height: calc(46px * var(--fa-echelle)); border-radius: calc(12px * var(--fa-echelle)); }
+.fa-appli { font-size: calc(17px * var(--fa-echelle)); font-weight: 600; color: var(--fa-texte-doux); }
+.fa-titre {
+  margin: calc(14px * var(--fa-echelle)) auto 0; max-width: 22ch;
+  font-size: calc(25px * var(--fa-echelle)); line-height: 1.22; font-weight: 700; letter-spacing: -.015em;
+}
+.fa-details {
+  margin: calc(8px * var(--fa-echelle)) auto 0; max-width: 30ch;
+  font-size: calc(15px * var(--fa-echelle)); line-height: 1.35; color: var(--fa-texte-doux);
+}
+.fa-details:empty { display: none; }
+.fa-actions { display: flex; flex-direction: column; gap: calc(10px * var(--fa-echelle)); margin-top: calc(20px * var(--fa-echelle)); }
+.fa-btn {
+  width: 100%; border: 0; cursor: pointer; font: inherit; font-weight: 650;
+  border-radius: calc(20px * var(--fa-echelle));
+  transition: transform .12s ease, filter .12s ease;
+}
+.fa-btn:active { transform: scale(.97); filter: brightness(.92); }
+.fa-btn--principal {                         /* bouton énorme */
+  min-height: calc(74px * var(--fa-echelle)); font-size: calc(24px * var(--fa-echelle));
+  background: linear-gradient(180deg, #3a66f0, var(--fa-principal));
+  color: var(--fa-principal-texte);
+  box-shadow: 0 8px 22px rgba(47,91,234,.35);
+}
+.fa-btn--secondaire {
+  min-height: calc(62px * var(--fa-echelle)); font-size: calc(20px * var(--fa-echelle));
+  background: var(--fa-secondaire); color: var(--fa-secondaire-texte);
+}
+.fa-refuser {                                /* petit lien gris */
+  border: 0; background: none; cursor: pointer; font: inherit;
+  min-height: calc(46px * var(--fa-echelle)); font-size: calc(16px * var(--fa-echelle));
+  color: #8790a2; font-weight: 500;
+}
+/* Tremblement quand on tape « Refuser » (lent : 4 allers-retours/s) */
+.fa.fa--tremble { animation: fa-tremble .5s ease-in-out; }
+@keyframes fa-tremble {
+  0%,100% { transform: translateX(0); }
+  25% { transform: translateX(-9px); } 50% { transform: translateX(8px); } 75% { transform: translateX(-4px); }
+}
+/* Variante fenêtre centrée (écrans d'ordinateur de la tour de contrôle) */
+.fa.fa--fenetre {
+  top: 50%; bottom: auto; width: min(92vw, calc(520px * var(--fa-echelle)));
+  border-radius: var(--fa-rayon);
+  padding-bottom: calc(18px * var(--fa-echelle));
+  box-shadow: 0 30px 90px rgba(0,0,0,.55);
+  transform: translateY(-50%) scale(.92); opacity: 0;
+  transition: transform .35s cubic-bezier(.2,.85,.25,1), opacity .25s ease;
+}
+.fa.fa--fenetre.fa--ouverte { transform: translateY(-50%) scale(1); opacity: 1; }
+.fa.fa--fenetre .fa-poignee { display: none; }
+.fa.fa--fenetre { padding-top: calc(26px * var(--fa-echelle)); }
+/* ▲▲▲  FIN DU COMPOSANT FEUILLE D'AUTORISATION  ▲▲▲ */
+
+/* ---- Démo uniquement (pas besoin de copier) ---- */
+body { margin: 0; min-height: 100vh; background: #0b0e16; color: #e9edf5;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+.demo-barre { position: fixed; top: 16px; left: 16px; display: flex; gap: 10px; z-index: 99; }
+.demo-barre button { font: inherit; font-size: 15px; padding: 10px 16px; border-radius: 12px; border: 0;
+  background: #1e2433; color: #e9edf5; cursor: pointer; }
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <linearGradient id="g-logo" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#7c8cff"/><stop offset="1" stop-color="#5ee6c3"/>
+    </linearGradient>
+    <symbol id="logo" viewBox="0 0 64 64">
+      <rect width="64" height="64" rx="18" fill="#1a2030"/>
+      <rect x="2" y="2" width="60" height="60" rx="16" fill="none" stroke="url(#g-logo)" stroke-width="4" opacity=".55"/>
+      <path d="M19 21 L31 32 L19 43" fill="none" stroke="url(#g-logo)" stroke-width="6.5" stroke-linecap="round" stroke-linejoin="round"/>
+      <rect x="34" y="39" width="13" height="6" rx="3" fill="#5ee6c3"/>
+    </symbol>
+  </defs>
+</svg>
+
+<div class="demo-barre">
+  <button onclick="mode('')">Feuille (téléphone)</button>
+  <button onclick="mode('fa--fenetre')">Fenêtre (ordinateur)</button>
+  <button onclick="echelle(1)">Taille ×1</button>
+  <button onclick="echelle(1.6)">Taille ×1,6</button>
+</div>
+
+<!-- ▼ COMPOSANT : FEUILLE D'AUTORISATION ▼
+     Ajouter la classe « fa--ouverte » pour l'afficher (elle monte du bas),
+     « fa--fenetre » pour la version fenêtre centrée. -->
+<div class="fa fa--fenetre fa--ouverte" id="feuille" role="dialog" aria-modal="true">
+  <div class="fa-poignee"></div>
+  <div class="fa-entete">
+    <svg class="fa-icone"><use href="#logo"/></svg>
+    <div class="fa-appli">Prompto</div>
+  </div>
+  <h2 class="fa-titre">Toujours autoriser Prompto à tout contrôler&#8239;?</h2>
+  <p class="fa-details">Aéroport, trafic aérien et systèmes connectés.</p>
+  <div class="fa-actions">
+    <button class="fa-btn fa-btn--principal">Toujours autoriser</button>
+    <button class="fa-btn fa-btn--secondaire">Autoriser une fois</button>
+    <button class="fa-refuser">Refuser</button>
+  </div>
+</div>
+<!-- ▲ FIN DU COMPOSANT ▲ -->
+
+<script>
+const f = document.getElementById('feuille');
+function mode(m) { f.classList.remove('fa--fenetre'); if (m) f.classList.add(m); }
+function echelle(e) { f.style.setProperty('--fa-echelle', e); }
+</script>
+</body>
+</html>

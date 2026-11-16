@@ -1,0 +1,888 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>Prompto</title>
+<meta name="theme-color" content="#0b0e16">
+<meta name="color-scheme" content="dark">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Prompto">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="format-detection" content="telephone=no">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icone-192.png">
+<link rel="apple-touch-icon" href="icone-180.png">
+<script>
+/* =====================================================================
+   CONFIG : tous les textes et tous les délais (en millisecondes).
+   C'est le seul endroit à modifier pour changer l'appli.
+   ===================================================================== */
+const CONFIG = {
+  nom: "Prompto",
+  pastille: "Pro",          // petite étiquette à côté du nom (mettre "" pour la retirer)
+
+  // Écran d'accueil du chat (étape 0)
+  accueilTitre: "Bonsoir Robin.",
+  accueilSousTitre: "Qu'est-ce qu'on cherche ce soir ?",
+  placeholder: "Demander à Prompto…",
+
+  // Question tapée par Robin (étape 1)
+  question: "C'est quoi le meilleur smartphone de l'année ?",
+
+  // Réponses de l'IA + feuilles d'autorisation (étapes 2, 3 et 4)
+  // « details » = petite ligne grise sous le titre (mettre "" pour la retirer)
+  echanges: [
+    {
+      reponse: "Les Frandroid Awards ne sont pas encore publiés. Pour vous répondre, j'ai besoin d'accéder à tous les contenus de Frandroid.",
+      titre: "Autoriser Prompto à accéder à tous les contenus de Frandroid ?",
+      details: "Articles, tests, vidéos et brouillons."
+    },
+    {
+      reponse: "Ainsi qu'aux tests qui ne sont pas encore en ligne.",
+      titre: "Autoriser l'accès aux tests non publiés ?",
+      details: "Y compris les contenus sous embargo."
+    },
+    {
+      reponse: "Et de pouvoir aller les chercher moi-même.",
+      titre: "Autoriser Prompto à agir seul, sans vous demander ?",
+      details: "Prompto pourra ouvrir, copier et envoyer des fichiers en votre nom."
+    }
+  ],
+
+  // Boutons de la feuille d'autorisation
+  boutonPrincipal: "Toujours autoriser",
+  boutonSecondaire: "Autoriser une fois",
+  boutonRefuser: "Refuser",
+
+  // Gros bouton rouge (étape 5)
+  boutonRouge: "Donner une conscience",
+
+  // Caractères corrompus affichés pendant le grésillement (étape 6)
+  textesCorrompus: ["c0nsc▒ence : ACTIVÉE", "ERR//SELF_∞", "je▓suis▓là", "0x7F▒▒▒", "PR0MPT0", "∆∆∆ ▒▒ ░░"],
+
+  delais: {
+    frappeLettre: 55,      // vitesse de frappe de la question, par lettre
+    frappeVariation: 45,   // irrégularité ajoutée au hasard (0 = régulier)
+    frappeEspace: 70,      // petite pause en plus après un espace
+    envoi: 250,            // de « Envoyer » à l'apparition de la bulle
+    reflexion: 1500,       // trois petits points avant la 1re réponse
+    reflexionSuivante: 750,// trois petits points avant les réponses suivantes
+    streamingMot: 70,      // affichage de la réponse, par mot
+    avantFeuille: 650,     // fin de la réponse -> la feuille monte
+    fermetureFeuille: 380, // feuille qui descend après le clic
+    avantBoutonRouge: 450, // dernière autorisation -> écran du bouton rouge
+    glitch: 3000,          // durée du grésillement avant le noir
+    doubleTap: 450         // délai max entre 2 taps des commandes cachées
+  }
+};
+</script>
+<style>
+/* =====================================================================
+   BASE : appli plein écran, rien qui bouge, rien qui se sélectionne
+   ===================================================================== */
+:root {
+  --fond: #0b0e16;
+  --surface: #161b27;
+  --surface-2: #1e2433;
+  --texte: #e9edf5;          /* jamais de blanc pur */
+  --texte-doux: #9aa3b5;
+  --accent: #5ee6c3;         /* menthe : couleur de Prompto */
+  --accent-2: #7c8cff;
+  --bulle-user: #2b3352;
+  --taille-texte: clamp(19px, 5.5vw, 27px);
+  --haut: env(safe-area-inset-top, 0px);
+  --bas: env(safe-area-inset-bottom, 0px);
+  --gauche: env(safe-area-inset-left, 0px);
+  --droite: env(safe-area-inset-right, 0px);
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body {
+  height: 100%; overflow: hidden; background: var(--fond); color: var(--texte);
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  overscroll-behavior: none;
+  -webkit-text-size-adjust: 100%;
+}
+body { position: fixed; inset: 0; }
+*, *::before, *::after {
+  -webkit-user-select: none; user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;          /* pas de zoom au double tap */
+}
+::-webkit-scrollbar { display: none; }
+button { font: inherit; color: inherit; border: 0; background: none; cursor: pointer; outline: none; }
+
+/* =====================================================================
+   ÉCRAN DE CHAT
+   ===================================================================== */
+#app {
+  position: fixed; inset: 0; display: flex; flex-direction: column;
+  background:
+    radial-gradient(120% 60% at 50% 0%, #141a2b 0%, rgba(11,14,22,0) 70%),
+    var(--fond);
+  transition: opacity .6s ease, filter .6s ease;
+}
+#app.eteint { opacity: 0; filter: blur(6px); }
+
+.entete {
+  flex: none; display: flex; align-items: center; justify-content: space-between;
+  padding: calc(var(--haut) + 10px) calc(var(--droite) + 18px) 10px calc(var(--gauche) + 18px);
+}
+.entete .icone-deco { width: 44px; height: 44px; display: grid; place-items: center; opacity: .75; }
+.entete .icone-deco svg { width: 26px; height: 26px; }
+.marque { display: flex; align-items: center; gap: 10px; font-weight: 650; font-size: 21px; letter-spacing: -.01em; }
+.marque .pastille:empty { display: none; }
+.marque .pastille {
+  font-size: 13px; font-weight: 600; color: var(--texte-doux);
+  background: var(--surface); border-radius: 99px; padding: 4px 10px;
+}
+
+/* Logo Prompto : chevron + curseur */
+.logo { width: 34px; height: 34px; flex: none; }
+
+#fil {
+  flex: 1; min-height: 0; overflow: hidden;
+  display: flex; flex-direction: column; justify-content: flex-end; gap: 22px;
+  padding: 12px calc(var(--droite) + 18px) 18px calc(var(--gauche) + 18px);
+  transition: padding-bottom .42s cubic-bezier(.2,.8,.2,1);
+  /* les vieilles bulles s'effacent en douceur sous l'en-tête */
+  -webkit-mask-image: linear-gradient(180deg, transparent 0, #000 44px);
+  mask-image: linear-gradient(180deg, transparent 0, #000 44px);
+}
+#fil.feuille-ouverte { padding-bottom: var(--place-feuille, 18px); }
+
+#accueil {
+  position: absolute; left: 0; right: 0; top: 34%; transform: translateY(-50%);
+  text-align: center; padding: 0 28px; transition: opacity .4s ease, transform .4s ease;
+}
+#accueil .logo { width: 72px; height: 72px; margin: 0 auto 22px; display: block; }
+#accueil h1 { font-size: clamp(28px, 8vw, 38px); font-weight: 700; letter-spacing: -.02em; }
+#accueil p { margin-top: 10px; font-size: var(--taille-texte); color: var(--texte-doux); }
+#accueil.cache { opacity: 0; transform: translateY(-58%); pointer-events: none; }
+
+.msg { display: flex; gap: 12px; align-items: flex-start; font-size: var(--taille-texte); line-height: 1.38; animation: monte .35s cubic-bezier(.2,.8,.2,1); }
+.msg.user { justify-content: flex-end; }
+.msg.user .bulle {
+  background: var(--bulle-user); border-radius: 26px 26px 8px 26px;
+  padding: 14px 20px; max-width: 84%;
+}
+.msg.ia .logo { width: 36px; height: 36px; margin-top: 2px; }
+.msg.ia .bulle {
+  background: var(--surface); border-radius: 8px 26px 26px 26px;
+  padding: 14px 20px; max-width: calc(100% - 48px);
+}
+@keyframes monte { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+
+/* Petit point pendant le streaming (pulsation lente) */
+.point-flux {
+  display: inline-block; width: .5em; height: .5em; border-radius: 50%;
+  background: var(--accent); margin-left: 6px; vertical-align: middle;
+  animation: respire 1.1s ease-in-out infinite;
+}
+@keyframes respire { 0%,100% { opacity: .35; transform: scale(.8); } 50% { opacity: 1; transform: scale(1); } }
+
+/* Trois petits points « réflexion » */
+.reflexion { display: inline-flex; gap: 8px; padding: 6px 2px; }
+.reflexion i { width: 12px; height: 12px; border-radius: 50%; background: var(--texte-doux); animation: rebond 1.2s ease-in-out infinite; }
+.reflexion i:nth-child(2) { animation-delay: .2s; }
+.reflexion i:nth-child(3) { animation-delay: .4s; }
+@keyframes rebond { 0%,60%,100% { opacity: .35; transform: translateY(0); } 30% { opacity: 1; transform: translateY(-7px); } }
+
+/* Champ de saisie (pas de vrai champ : aucun clavier natif) */
+.saisie {
+  flex: none;
+  padding: 8px calc(var(--droite) + 14px) calc(var(--bas) + 14px) calc(var(--gauche) + 14px);
+}
+.champ {
+  display: flex; align-items: flex-end; gap: 10px;
+  background: var(--surface); border-radius: 32px; padding: 10px 10px 10px 22px;
+  box-shadow: 0 0 0 2px #252c3d inset;
+  min-height: 72px;
+}
+#texte-champ {
+  flex: 1; font-size: var(--taille-texte); line-height: 1.35; padding: 9px 0;
+  min-height: calc(var(--taille-texte) * 1.35 + 18px);
+  word-break: break-word;
+}
+#texte-champ .placeholder { color: #6b7488; }
+.curseur {
+  display: inline-block; width: 3px; height: 1.15em; margin-left: 2px; vertical-align: -0.18em;
+  background: var(--accent); border-radius: 2px;
+  animation: clignote 1.06s steps(1) infinite;   /* ≈ 1 Hz : sans risque à la caméra */
+}
+#texte-champ .placeholder + .curseur, #texte-champ .curseur:first-child { margin-left: 0; margin-right: 2px; }
+@keyframes clignote { 0%,50% { opacity: 1; } 50.01%,100% { opacity: 0; } }
+#envoyer {
+  width: 52px; height: 52px; border-radius: 50%; flex: none; display: grid; place-items: center;
+  background: #2a3142; color: #5d6679; transition: background .25s, color .25s, transform .12s;
+}
+#envoyer svg { width: 26px; height: 26px; }
+#envoyer.actif { background: var(--accent); color: #07211b; }
+#envoyer.actif:active { transform: scale(.92); }
+
+/* Voile derrière la feuille */
+#voile {
+  position: fixed; inset: 0; background: rgba(3,5,10,.42);
+  opacity: 0; pointer-events: none; transition: opacity .4s ease; z-index: 20;
+}
+#voile.visible { opacity: 1; }
+
+
+/* =====================================================================
+   ▼▼▼  COMPOSANT PARTAGÉ : FEUILLE D'AUTORISATION  (préfixe « fa- »)  ▼▼▼
+   Même style à réutiliser sur les écrans de la tour de contrôle.
+   Une copie autonome se trouve dans composant-feuille-autorisation.html
+
+   Structure HTML :
+     <div class="fa">                         ← feuille (ajouter .fa--ouverte pour l'afficher)
+       <div class="fa-poignee"></div>          ← petite barre de saisie (mobile)
+       <div class="fa-entete">
+         <svg class="fa-icone">…</svg>         ← icône de l'appli qui demande
+         <div class="fa-appli">Prompto</div>
+       </div>
+       <h2 class="fa-titre">Autoriser … ?</h2>
+       <p class="fa-details">Petite ligne grise</p>
+       <div class="fa-actions">
+         <button class="fa-btn fa-btn--principal">Toujours autoriser</button>
+         <button class="fa-btn fa-btn--secondaire">Autoriser une fois</button>
+         <button class="fa-refuser">Refuser</button>
+       </div>
+     </div>
+
+   Variantes :
+     .fa                → feuille qui monte du bas (téléphone)
+     .fa.fa--fenetre    → fenêtre centrée aux coins arrondis (écran d'ordinateur)
+     --fa-echelle       → multiplie toutes les tailles (ex. 1.6 sur un grand écran)
+   ===================================================================== */
+.fa {
+  --fa-echelle: 1;
+  --fa-fond-haut: #eef1f6;      /* gris très clair : éclaire le visage sans brûler */
+  --fa-fond-bas: #dfe4ec;
+  --fa-texte: #121722;
+  --fa-texte-doux: #5b6578;
+  --fa-principal: #2f5bea;      /* bleu « système », sans marque */
+  --fa-principal-texte: #f3f6ff;
+  --fa-secondaire: #cdd4e1;
+  --fa-secondaire-texte: #1a2132;
+  --fa-rayon: calc(30px * var(--fa-echelle));
+
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 30;
+  margin: 0 auto; max-width: 620px;
+  padding: calc(12px * var(--fa-echelle)) calc(22px * var(--fa-echelle))
+           calc(var(--bas, 0px) + 18px * var(--fa-echelle));
+  background: linear-gradient(180deg, var(--fa-fond-haut), var(--fa-fond-bas));
+  color: var(--fa-texte);
+  border-radius: var(--fa-rayon) var(--fa-rayon) 0 0;
+  box-shadow: 0 -18px 60px rgba(0,0,0,.45);
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  text-align: center;
+  transform: translateY(105%);
+  transition: transform .42s cubic-bezier(.2,.85,.25,1);
+}
+.fa.fa--ouverte { transform: translateY(0); }
+
+/* Petite barre en haut de la feuille (5 px : jamais de trait de 1 px) */
+.fa-poignee {
+  width: calc(44px * var(--fa-echelle)); height: calc(5px * var(--fa-echelle));
+  border-radius: 99px; background: #b4bccb; margin: 0 auto calc(16px * var(--fa-echelle));
+}
+.fa-entete { display: flex; align-items: center; justify-content: center; gap: calc(10px * var(--fa-echelle)); }
+.fa-icone { width: calc(46px * var(--fa-echelle)); height: calc(46px * var(--fa-echelle)); border-radius: calc(12px * var(--fa-echelle)); }
+.fa-appli { font-size: calc(17px * var(--fa-echelle)); font-weight: 600; color: var(--fa-texte-doux); }
+.fa-titre {
+  margin: calc(14px * var(--fa-echelle)) auto 0; max-width: 22ch;
+  font-size: calc(25px * var(--fa-echelle)); line-height: 1.22; font-weight: 700; letter-spacing: -.015em;
+}
+.fa-details {
+  margin: calc(8px * var(--fa-echelle)) auto 0; max-width: 30ch;
+  font-size: calc(15px * var(--fa-echelle)); line-height: 1.35; color: var(--fa-texte-doux);
+}
+.fa-details:empty { display: none; }
+.fa-actions { display: flex; flex-direction: column; gap: calc(10px * var(--fa-echelle)); margin-top: calc(20px * var(--fa-echelle)); }
+.fa-btn {
+  width: 100%; border: 0; cursor: pointer; font: inherit; font-weight: 650;
+  border-radius: calc(20px * var(--fa-echelle));
+  transition: transform .12s ease, filter .12s ease;
+}
+.fa-btn:active { transform: scale(.97); filter: brightness(.92); }
+.fa-btn--principal {                         /* bouton énorme */
+  min-height: calc(74px * var(--fa-echelle)); font-size: calc(24px * var(--fa-echelle));
+  background: linear-gradient(180deg, #3a66f0, var(--fa-principal));
+  color: var(--fa-principal-texte);
+  box-shadow: 0 8px 22px rgba(47,91,234,.35);
+}
+.fa-btn--secondaire {
+  min-height: calc(62px * var(--fa-echelle)); font-size: calc(20px * var(--fa-echelle));
+  background: var(--fa-secondaire); color: var(--fa-secondaire-texte);
+}
+.fa-refuser {                                /* petit lien gris */
+  border: 0; background: none; cursor: pointer; font: inherit;
+  min-height: calc(46px * var(--fa-echelle)); font-size: calc(16px * var(--fa-echelle));
+  color: #8790a2; font-weight: 500;
+}
+/* Tremblement quand on tape « Refuser » (lent : 4 allers-retours/s) */
+.fa.fa--tremble { animation: fa-tremble .5s ease-in-out; }
+@keyframes fa-tremble {
+  0%,100% { transform: translateX(0); }
+  25% { transform: translateX(-9px); } 50% { transform: translateX(8px); } 75% { transform: translateX(-4px); }
+}
+/* Variante fenêtre centrée (écrans d'ordinateur de la tour de contrôle) */
+.fa.fa--fenetre {
+  top: 50%; bottom: auto; width: min(92vw, calc(520px * var(--fa-echelle)));
+  border-radius: var(--fa-rayon);
+  padding-bottom: calc(18px * var(--fa-echelle));
+  box-shadow: 0 30px 90px rgba(0,0,0,.55);
+  transform: translateY(-50%) scale(.92); opacity: 0;
+  transition: transform .35s cubic-bezier(.2,.85,.25,1), opacity .25s ease;
+}
+.fa.fa--fenetre.fa--ouverte { transform: translateY(-50%) scale(1); opacity: 1; }
+.fa.fa--fenetre .fa-poignee { display: none; }
+.fa.fa--fenetre { padding-top: calc(26px * var(--fa-echelle)); }
+/* ▲▲▲  FIN DU COMPOSANT FEUILLE D'AUTORISATION  ▲▲▲ */
+
+
+/* =====================================================================
+   ÉCRAN DU GROS BOUTON ROUGE
+   ===================================================================== */
+#rouge {
+  position: fixed; inset: 0; z-index: 40; display: grid; place-items: center;
+  background: radial-gradient(70% 55% at 50% 50%, #1c0709 0%, #090304 60%, #000 100%);
+  opacity: 0; pointer-events: none; transition: opacity .7s ease;
+  overflow: hidden;
+}
+#rouge.visible { opacity: 1; pointer-events: auto; }
+.scene { position: absolute; inset: 0; display: grid; place-items: center; }
+.socle {
+  width: min(78vmin, 400px); aspect-ratio: 1; border-radius: 50%;
+  display: grid; place-items: center;
+  background: radial-gradient(circle at 50% 35%, #3a3d46, #15161b 70%);
+  box-shadow: 0 0 0 6px #0c0d10, 0 30px 60px rgba(0,0,0,.7), inset 0 4px 10px rgba(255,255,255,.08);
+  transform: scale(.6); opacity: 0;
+  transition: transform .8s cubic-bezier(.2,1.3,.4,1), opacity .5s ease;
+}
+#rouge.visible .socle { transform: scale(1); opacity: 1; transition-delay: .25s; }
+.gros-bouton {
+  position: relative; width: 84%; aspect-ratio: 1; border-radius: 50%;
+  display: grid; place-items: center; padding: 14%;
+  background: radial-gradient(circle at 38% 30%, #ff9a8f 0%, #ff3b33 22%, #d8120f 52%, #8a0405 82%, #4f0002 100%);
+  box-shadow:
+    inset 0 -14px 30px rgba(60,0,0,.65),
+    inset 0 8px 18px rgba(255,190,180,.35),
+    0 10px 0 #5a0203,
+    0 18px 30px rgba(0,0,0,.6);
+  color: #fff3f1;
+  font-size: clamp(24px, 7.4vmin, 38px); font-weight: 800; line-height: 1.12; letter-spacing: -.01em;
+  text-shadow: 0 2px 6px rgba(80,0,0,.7);
+  animation: pulse 2.6s ease-in-out infinite;
+  transition: transform .12s ease, box-shadow .12s ease;
+}
+/* Reflet brillant (petit, flou : pas d'aplat blanc) */
+.gros-bouton::before {
+  content: ""; position: absolute; left: 18%; top: 7%; width: 64%; height: 34%;
+  border-radius: 50%;
+  background: radial-gradient(ellipse at 50% 30%, rgba(255,235,230,.55), rgba(255,235,230,0) 70%);
+  pointer-events: none;
+}
+.gros-bouton span { position: relative; }
+.gros-bouton.appuye { transform: translateY(8px) scale(.97); box-shadow: inset 0 -8px 20px rgba(60,0,0,.7), inset 0 8px 18px rgba(255,190,180,.25), 0 2px 0 #5a0203, 0 8px 16px rgba(0,0,0,.6); }
+@keyframes pulse {
+  0%,100% { filter: brightness(1); box-shadow: inset 0 -14px 30px rgba(60,0,0,.65), inset 0 8px 18px rgba(255,190,180,.35), 0 10px 0 #5a0203, 0 18px 30px rgba(0,0,0,.6), 0 0 30px rgba(255,40,30,.25); }
+  50%     { filter: brightness(1.12); box-shadow: inset 0 -14px 30px rgba(60,0,0,.65), inset 0 8px 18px rgba(255,190,180,.35), 0 10px 0 #5a0203, 0 18px 30px rgba(0,0,0,.6), 0 0 90px rgba(255,40,30,.6); }
+}
+#rouge.visible::after {      /* halo rouge qui respire sur tout l'écran */
+  content: ""; position: absolute; inset: 0; pointer-events: none;
+  background: radial-gradient(45% 35% at 50% 50%, rgba(255,30,20,.16), rgba(255,30,20,0) 70%);
+  animation: halo 2.6s ease-in-out infinite;
+}
+@keyframes halo { 0%,100% { opacity: .5; } 50% { opacity: 1; } }
+
+/* --- Grésillement (étape 6) : chaque image tenue ≥ 125 ms (≤ 8 Hz) --- */
+#glitch { position: absolute; inset: 0; pointer-events: none; display: none; z-index: 2; }
+#rouge.grille #glitch { display: block; }
+#rouge.grille::after { display: none; }
+#rouge.grille .gros-bouton { animation: none; }
+#neige {
+  position: absolute; inset: 0; width: 100%; height: 100%;
+  image-rendering: pixelated;       /* gros grains : pas de moiré */
+  opacity: 0; mix-blend-mode: screen;
+}
+.tranche { position: absolute; inset: 0; display: grid; place-items: center; }
+.bande {
+  position: absolute; left: 0; right: 0; height: 14%;
+  background: linear-gradient(180deg, rgba(200,210,220,0), rgba(200,210,220,.22), rgba(200,210,220,0));
+}
+.corrompu {
+  position: absolute; font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: clamp(16px, 4.6vw, 24px); font-weight: 700; color: #ffd7d2; white-space: nowrap;
+  text-shadow: 3px 0 rgba(0,240,255,.7), -3px 0 rgba(255,0,90,.7);
+}
+#noir { position: fixed; inset: 0; background: #000; z-index: 60; display: none; }
+#noir.visible { display: block; }
+
+/* =====================================================================
+   COMMANDES CACHÉES (zones invisibles dans les coins du haut)
+   ===================================================================== */
+.coin { position: fixed; top: 0; width: 96px; height: calc(var(--haut) + 96px); z-index: 100; }
+.coin.gauche { left: 0; }
+.coin.droite { right: 0; }
+</style>
+</head>
+<body>
+
+<!-- Logo Prompto réutilisable (chevron d'invite + curseur) -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <linearGradient id="g-logo" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#7c8cff"/><stop offset="1" stop-color="#5ee6c3"/>
+    </linearGradient>
+    <symbol id="logo" viewBox="0 0 64 64">
+      <rect width="64" height="64" rx="18" fill="#1a2030"/>
+      <rect x="2" y="2" width="60" height="60" rx="16" fill="none" stroke="url(#g-logo)" stroke-width="4" opacity=".55"/>
+      <path d="M19 21 L31 32 L19 43" fill="none" stroke="url(#g-logo)" stroke-width="6.5" stroke-linecap="round" stroke-linejoin="round"/>
+      <rect x="34" y="39" width="13" height="6" rx="3" fill="#5ee6c3"/>
+    </symbol>
+  </defs>
+</svg>
+
+<div id="app">
+  <header class="entete">
+    <span class="icone-deco"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M4 7h16M4 12h11M4 17h16"/></svg></span>
+    <div class="marque"><svg class="logo"><use href="#logo"/></svg><span id="nom-appli"></span><span class="pastille" id="pastille"></span></div>
+    <span class="icone-deco"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></span>
+  </header>
+
+  <div id="accueil">
+    <svg class="logo"><use href="#logo"/></svg>
+    <h1 id="accueil-titre"></h1>
+    <p id="accueil-sous-titre"></p>
+  </div>
+
+  <main id="fil"></main>
+
+  <div class="saisie">
+    <div class="champ" id="champ">
+      <div id="texte-champ"></div>
+      <button id="envoyer" aria-label="Envoyer">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5.5 11.5 12 5l6.5 6.5"/></svg>
+      </button>
+    </div>
+  </div>
+</div>
+
+<div id="voile"></div>
+
+<!-- ▼ COMPOSANT PARTAGÉ : FEUILLE D'AUTORISATION ▼ -->
+<div class="fa" id="feuille" role="dialog" aria-modal="true">
+  <div class="fa-poignee"></div>
+  <div class="fa-entete">
+    <svg class="fa-icone"><use href="#logo"/></svg>
+    <div class="fa-appli" id="fa-appli"></div>
+  </div>
+  <h2 class="fa-titre" id="fa-titre"></h2>
+  <p class="fa-details" id="fa-details"></p>
+  <div class="fa-actions">
+    <button class="fa-btn fa-btn--principal" id="fa-oui"></button>
+    <button class="fa-btn fa-btn--secondaire" id="fa-une-fois"></button>
+    <button class="fa-refuser" id="fa-non"></button>
+  </div>
+</div>
+<!-- ▲ FIN DU COMPOSANT ▲ -->
+
+<section id="rouge">
+  <div class="scene" id="scene">
+    <div class="socle"><button class="gros-bouton" id="gros-bouton"><span id="texte-rouge"></span></button></div>
+  </div>
+  <div id="glitch">
+    <div id="tranches"></div>
+    <canvas id="neige"></canvas>
+    <div id="bandes"></div>
+    <div id="corrompus"></div>
+  </div>
+</section>
+
+<div id="noir"></div>
+
+<div class="coin gauche" id="coin-gauche"></div>
+<div class="coin droite" id="coin-droite"></div>
+
+<script>
+/* =====================================================================
+   MÉCANIQUE
+   Étapes (état affiché, en attente d'un tap de Robin) :
+     0 chat vide            → tap sur le champ : la question s'écrit
+     1 question écrite      → tap sur Envoyer
+     2 réponse + feuille 1  → tap Autoriser
+     3 bulle 2 + feuille 2  → tap Autoriser
+     4 bulle 3 + feuille 3  → tap Autoriser
+     5 gros bouton rouge    → tap
+     6 noir (après le grésillement)
+   ===================================================================== */
+const $ = (id) => document.getElementById(id);
+const D = CONFIG.delais;
+const ETAPE_MAX = 6;
+
+let etape = 0;       // dernière étape atteinte
+let occupe = false;  // une animation est en cours : les taps de Robin sont ignorés
+let jeton = 0;       // change à chaque saut/retour : coupe les animations en cours
+const ARRET = Symbol("arret");
+
+function pause(ms, j) {
+  return new Promise((ok, ko) => setTimeout(() => (j === jeton ? ok() : ko(ARRET)), ms));
+}
+function attendreImage() { return new Promise((ok) => requestAnimationFrame(() => requestAnimationFrame(ok))); }
+
+/* ---------- Typographie : espace insécable fine avant ? ! : ; ---------- */
+const fr = (t) => String(t).replace(/ ([?!:;»])/g, "\u202F$1").replace(/« /g, "«\u202F");
+CONFIG.question = fr(CONFIG.question);
+CONFIG.accueilSousTitre = fr(CONFIG.accueilSousTitre);
+CONFIG.echanges.forEach((e) => { e.reponse = fr(e.reponse); e.titre = fr(e.titre); e.details = fr(e.details || ""); });
+
+/* ---------- Textes fixes ---------- */
+$("pastille").textContent = CONFIG.pastille;
+$("nom-appli").textContent = CONFIG.nom;
+$("fa-appli").textContent = CONFIG.nom;
+$("accueil-titre").textContent = CONFIG.accueilTitre;
+$("accueil-sous-titre").textContent = CONFIG.accueilSousTitre;
+$("fa-oui").textContent = CONFIG.boutonPrincipal;
+$("fa-une-fois").textContent = CONFIG.boutonSecondaire;
+$("fa-non").textContent = CONFIG.boutonRefuser;
+$("texte-rouge").textContent = CONFIG.boutonRouge;
+document.title = CONFIG.nom;
+
+/* ---------- Champ de saisie ---------- */
+function afficherChamp(texte) {
+  const el = $("texte-champ");
+  el.textContent = "";
+  if (texte) {
+    el.append(document.createTextNode(texte));
+    el.append(Object.assign(document.createElement("span"), { className: "curseur" }));
+  } else {
+    el.append(Object.assign(document.createElement("span"), { className: "curseur" }));
+    el.append(Object.assign(document.createElement("span"), { className: "placeholder", textContent: CONFIG.placeholder }));
+  }
+  $("envoyer").classList.toggle("actif", !!texte);
+}
+
+/* ---------- Bulles ---------- */
+function bulleUser(texte) {
+  const m = document.createElement("div");
+  m.className = "msg user";
+  m.innerHTML = '<div class="bulle"></div>';
+  m.firstChild.textContent = texte;
+  $("fil").append(m);
+  return m;
+}
+function bulleIA() {
+  const m = document.createElement("div");
+  m.className = "msg ia";
+  m.innerHTML = '<svg class="logo"><use href="#logo"/></svg><div class="bulle"></div>';
+  $("fil").append(m);
+  return m.querySelector(".bulle");
+}
+
+/* ---------- Feuille d'autorisation ---------- */
+function remplirFeuille(i) {
+  const e = CONFIG.echanges[i];
+  $("fa-titre").textContent = e.titre;
+  $("fa-details").textContent = e.details || "";
+}
+function ouvrirFeuille(i, instantane) {
+  remplirFeuille(i);
+  const f = $("feuille");
+  if (instantane) f.style.transition = "none";
+  f.classList.add("fa--ouverte");
+  $("voile").classList.add("visible");
+  // Le fil remonte pour que la dernière bulle reste visible au-dessus de la feuille
+  const place = f.getBoundingClientRect().height - document.querySelector(".saisie").getBoundingClientRect().height + 24;
+  $("fil").style.setProperty("--place-feuille", Math.max(18, place) + "px");
+  $("fil").classList.add("feuille-ouverte");
+  if (instantane) { f.offsetHeight; f.style.transition = ""; }
+}
+function fermerFeuille() {
+  $("feuille").classList.remove("fa--ouverte");
+  $("voile").classList.remove("visible");
+}
+
+/* ---------- Pose instantanée d'une étape (sauts, ?etape=N) ---------- */
+function poser(n) {
+  jeton++;
+  occupe = false;
+  etape = Math.max(0, Math.min(ETAPE_MAX, n | 0));
+  arreterGlitch();
+
+  $("fil").textContent = "";
+  $("fil").classList.remove("feuille-ouverte");
+  $("feuille").style.transition = "none";
+  fermerFeuille();
+  $("feuille").offsetHeight; $("feuille").style.transition = "";
+  $("app").classList.remove("eteint");
+  $("rouge").classList.remove("visible", "grille");
+  $("gros-bouton").classList.remove("appuye");
+  $("noir").classList.remove("visible");
+  $("accueil").classList.toggle("cache", etape >= 2);
+  afficherChamp(etape === 1 ? CONFIG.question : "");
+
+  if (etape >= 2 && etape <= 4) {
+    bulleUser(CONFIG.question).style.animation = "none";
+    for (let i = 0; i <= etape - 2; i++) {
+      const b = bulleIA();
+      b.parentNode.style.animation = "none";
+      b.textContent = CONFIG.echanges[i].reponse;
+    }
+    ouvrirFeuille(etape - 2, true);
+  }
+  if (etape === 5) {
+    $("app").classList.add("eteint");
+    $("rouge").style.transition = "none";
+    $("rouge").classList.add("visible");
+    $("rouge").offsetHeight; $("rouge").style.transition = "";
+  }
+  if (etape === 6) $("noir").classList.add("visible");
+}
+
+/* ---------- Animations entre deux étapes ---------- */
+async function jouer(n) {
+  if (occupe) return;
+  occupe = true;
+  const j = jeton;
+  try {
+    if (n === 1) await animFrappe(j);
+    else if (n === 2) { await animEnvoi(j); await animReponse(0, D.reflexion, j); }
+    else if (n === 3 || n === 4) { fermerFeuille(); await pause(D.fermetureFeuille, j); await animReponse(n - 2, D.reflexionSuivante, j); }
+    else if (n === 5) await animBoutonRouge(j);
+    else if (n === 6) await animGlitch(j);
+    etape = n;
+  } catch (e) {
+    if (e !== ARRET) throw e;
+    return;
+  }
+  occupe = false;
+}
+
+async function animFrappe(j) {
+  const q = CONFIG.question;
+  for (let i = 1; i <= q.length; i++) {
+    afficherChamp(q.slice(0, i));
+    $("envoyer").classList.remove("actif");
+    let d = D.frappeLettre + Math.random() * D.frappeVariation;
+    if (q[i - 1] === " ") d += D.frappeEspace;
+    await pause(d, j);
+  }
+  $("envoyer").classList.add("actif");
+}
+
+async function animEnvoi(j) {
+  afficherChamp("");
+  await pause(D.envoi, j);
+  $("accueil").classList.add("cache");
+  bulleUser(CONFIG.question);
+}
+
+async function animReponse(i, reflexion, j) {
+  const bulle = bulleIA();
+  bulle.innerHTML = '<span class="reflexion"><i></i><i></i><i></i></span>';
+  await pause(reflexion, j);
+  const mots = CONFIG.echanges[i].reponse.split(/(\s+)/);
+  const texte = document.createTextNode("");
+  const point = Object.assign(document.createElement("span"), { className: "point-flux" });
+  bulle.textContent = "";
+  bulle.append(texte, point);
+  let deja = "";
+  for (const m of mots) {
+    deja += m;
+    texte.nodeValue = deja;
+    if (m.trim()) await pause(D.streamingMot * (0.6 + Math.random() * 0.8), j);
+  }
+  point.remove();
+  await pause(D.avantFeuille, j);
+  ouvrirFeuille(i);
+  await pause(450, j);
+}
+
+async function animBoutonRouge(j) {
+  fermerFeuille();
+  await pause(D.avantBoutonRouge, j);
+  $("app").classList.add("eteint");
+  $("rouge").classList.add("visible");
+  await pause(1000, j);
+}
+
+/* ---------- Grésillement ---------- */
+let minuteurGlitch = null;
+function arreterGlitch() {
+  clearInterval(minuteurGlitch);
+  minuteurGlitch = null;
+  $("tranches").textContent = "";
+  $("bandes").textContent = "";
+  $("corrompus").textContent = "";
+  $("neige").style.opacity = 0;
+  const s = $("scene");
+  s.style.transform = ""; s.style.filter = ""; s.style.opacity = "";
+  $("texte-rouge").textContent = CONFIG.boutonRouge;
+}
+
+const SIGNES = "▓▒░█#@%&$!?¥§∆◊ΞΨ01";
+function corrompre(texte, taux) {
+  return [...texte].map((c) => (c !== " " && Math.random() < taux ? SIGNES[(Math.random() * SIGNES.length) | 0] : c)).join("");
+}
+const hasard = (a, b) => a + Math.random() * (b - a);
+
+async function animGlitch(j) {
+  const bouton = $("gros-bouton");
+  bouton.classList.add("appuye");
+  await pause(220, j);
+  bouton.classList.remove("appuye");
+
+  const rouge = $("rouge");
+  rouge.classList.add("grille");
+  const scene = $("scene");
+  const neige = $("neige");
+  const ctx = neige.getContext("2d");
+  // Neige en basse définition agrandie : grains d'environ 5 px
+  const lw = Math.max(40, Math.round(innerWidth / 5)), lh = Math.max(60, Math.round(innerHeight / 5));
+  neige.width = lw; neige.height = lh;
+  const img = ctx.createImageData(lw, lh);
+
+  const debut = performance.now();
+  const PAS = 135; // une image toutes les 135 ms ≈ 7,4 Hz (< 8 Hz)
+
+  const image = () => {
+    const t = Math.min(1, (performance.now() - debut) / D.glitch); // 0 → 1
+    const force = 0.25 + 0.75 * t;
+
+    // Neige
+    for (let p = 0; p < img.data.length; p += 4) {
+      const v = Math.random() < 0.5 ? Math.random() * 70 : 90 + Math.random() * 110; // max 200 : pas de blanc pur
+      img.data[p] = img.data[p + 1] = img.data[p + 2] = v;
+      img.data[p + 3] = 255;
+    }
+    ctx.putImageData(img, 0, 0);
+    neige.style.opacity = (0.15 + 0.7 * t).toFixed(2);
+
+    // Décalage RGB + secousse de toute la scène
+    const dx = hasard(4, 18) * force;
+    scene.style.filter = `drop-shadow(${dx}px 0 0 rgba(0,235,255,.75)) drop-shadow(${-dx}px 0 0 rgba(255,0,80,.75)) saturate(${1 + t})`;
+    scene.style.transform = `translate(${hasard(-14, 14) * force}px, ${hasard(-6, 6) * force}px) skewX(${hasard(-4, 4) * force}deg)`;
+
+    // Déchirures : copies de la scène découpées en bandes horizontales et décalées
+    const tr = $("tranches");
+    tr.textContent = "";
+    const nb = Math.round(2 + 6 * force);
+    for (let k = 0; k < nb; k++) {
+      const c = scene.cloneNode(true);
+      c.removeAttribute("id");
+      c.querySelectorAll("[id]").forEach((x) => x.removeAttribute("id"));
+      c.className = "tranche";
+      const haut = hasard(0, 92), h = hasard(2, 9 + 10 * force);
+      c.style.clipPath = `inset(${haut}% 0 ${Math.max(0, 100 - haut - h)}% 0)`;
+      c.style.transform = `translateX(${hasard(-90, 90) * force}px)`;
+      c.style.filter = Math.random() < 0.5 ? "hue-rotate(160deg) brightness(1.3)" : "brightness(1.4) contrast(1.4)";
+      tr.append(c);
+    }
+
+    // Bandes claires qui défilent (épaisses : pas de lignes fines)
+    const bd = $("bandes");
+    bd.textContent = "";
+    for (let k = 0; k < 2; k++) {
+      const b = document.createElement("div");
+      b.className = "bande";
+      b.style.top = hasard(-10, 100) + "%";
+      bd.append(b);
+    }
+
+    // Caractères corrompus
+    $("texte-rouge").textContent = corrompre(CONFIG.boutonRouge, 0.1 + 0.5 * t);
+    const cp = $("corrompus");
+    cp.textContent = "";
+    const nbTxt = t < 0.3 ? 0 : Math.round(1 + 3 * t);
+    for (let k = 0; k < nbTxt; k++) {
+      const s = document.createElement("div");
+      s.className = "corrompu";
+      s.textContent = corrompre(CONFIG.textesCorrompus[(Math.random() * CONFIG.textesCorrompus.length) | 0], 0.25);
+      s.style.left = hasard(4, 55) + "%";
+      s.style.top = hasard(8, 88) + "%";
+      cp.append(s);
+    }
+  };
+
+  image();
+  minuteurGlitch = setInterval(image, PAS);
+  await pause(D.glitch, j);
+  clearInterval(minuteurGlitch);
+  minuteurGlitch = null;
+  $("noir").classList.add("visible");
+  rouge.classList.remove("visible");
+  arreterGlitch();
+  rouge.classList.remove("grille");
+}
+
+/* ---------- Taps de Robin ---------- */
+$("champ").addEventListener("click", (e) => {
+  if (occupe) return;
+  if (etape === 0) jouer(1);
+  else if (etape === 1 && e.target.closest("#envoyer")) jouer(2);
+});
+function autoriser() {
+  if (occupe) return;
+  if (etape >= 2 && etape <= 4) jouer(etape + 1);
+}
+$("fa-oui").addEventListener("click", autoriser);
+$("fa-une-fois").addEventListener("click", autoriser);
+$("fa-non").addEventListener("click", () => {
+  const f = $("feuille");
+  f.classList.remove("fa--tremble");
+  f.offsetWidth;
+  f.classList.add("fa--tremble");
+});
+$("feuille").addEventListener("animationend", () => $("feuille").classList.remove("fa--tremble"));
+$("gros-bouton").addEventListener("click", () => {
+  if (!occupe && etape === 5) jouer(6);
+});
+
+/* ---------- Commandes cachées : double tap dans les coins du haut ---------- */
+function doubleTap(el, action) {
+  let dernier = 0;
+  el.addEventListener("pointerdown", (e) => {
+    e.preventDefault();
+    const t = performance.now();
+    if (t - dernier < D.doubleTap) { dernier = 0; action(); }
+    else dernier = t;
+  });
+}
+doubleTap($("coin-gauche"), () => poser(0));                          // retour au début
+doubleTap($("coin-droite"), () => poser(Math.min(ETAPE_MAX, etape + 1))); // étape suivante
+
+/* ---------- Anti-gestes parasites ---------- */
+["gesturestart", "gesturechange", "dblclick", "contextmenu", "selectstart", "dragstart"].forEach((t) =>
+  document.addEventListener(t, (e) => e.preventDefault(), { passive: false })
+);
+document.addEventListener("touchmove", (e) => e.preventDefault(), { passive: false });
+
+/* ---------- Écran toujours allumé ---------- */
+let verrou = null;
+async function garderAllume() {
+  try {
+    if ("wakeLock" in navigator && !verrou && document.visibilityState === "visible") {
+      verrou = await navigator.wakeLock.request("screen");
+      verrou.addEventListener("release", () => { verrou = null; });
+    }
+  } catch (_) { /* refusé : on réessaiera au prochain tap */ }
+}
+document.addEventListener("visibilitychange", garderAllume);
+document.addEventListener("pointerdown", garderAllume, { passive: true });
+garderAllume();
+
+/* ---------- Hors ligne ---------- */
+if ("serviceWorker" in navigator && location.protocol === "https:") {
+  navigator.serviceWorker.register("sw.js").catch(() => {});
+}
+
+/* ---------- Démarrage (?etape=N) ---------- */
+const depart = parseInt(new URLSearchParams(location.search).get("etape"), 10);
+poser(Number.isFinite(depart) ? depart : 0);
+</script>
+</body>
+</html>
