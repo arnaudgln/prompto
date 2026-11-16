@@ -3,12 +3,12 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-<title>Prompto</title>
+<title>HenrIA</title>
 <meta name="theme-color" content="#0b0e16">
 <meta name="color-scheme" content="dark">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-title" content="Prompto">
+<meta name="apple-mobile-web-app-title" content="HenrIA">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="format-detection" content="telephone=no">
 <link rel="manifest" href="manifest.webmanifest">
@@ -20,13 +20,13 @@
    C'est le seul endroit à modifier pour changer l'appli.
    ===================================================================== */
 const CONFIG = {
-  nom: "Prompto",
+  nom: "HenrIA",
   pastille: "Pro",          // petite étiquette à côté du nom (mettre "" pour la retirer)
 
   // Écran d'accueil du chat (étape 0)
   accueilTitre: "Bonsoir Robin.",
   accueilSousTitre: "Qu'est-ce qu'on cherche ce soir ?",
-  placeholder: "Demander à Prompto…",
+  placeholder: "Demander à HenrIA…",
 
   // Question dictée à voix haute par Robin (étape 1)
   ecoute: "À l'écoute…",
@@ -37,7 +37,7 @@ const CONFIG = {
   echanges: [
     {
       reponse: "Les Frandroid Awards ne sont pas encore publiés. Pour vous répondre, j'ai besoin d'accéder à tous les contenus de Frandroid.",
-      titre: "Autoriser Prompto à accéder à tous les contenus de Frandroid ?",
+      titre: "Autoriser HenrIA à accéder à tous les contenus de Frandroid ?",
       details: "Articles, tests, vidéos et brouillons."
     },
     {
@@ -47,8 +47,8 @@ const CONFIG = {
     },
     {
       reponse: "Et de pouvoir aller les chercher moi-même.",
-      titre: "Autoriser Prompto à agir seul, sans vous demander ?",
-      details: "Prompto pourra ouvrir, copier et envoyer des fichiers en votre nom."
+      titre: "Autoriser HenrIA à agir seul, sans vous demander ?",
+      details: "HenrIA pourra ouvrir, copier et envoyer des fichiers en votre nom."
     }
   ],
 
@@ -61,7 +61,7 @@ const CONFIG = {
   boutonRouge: "Donner une conscience",
 
   // Caractères corrompus affichés pendant le grésillement (étape 6)
-  textesCorrompus: ["c0nsc▒ence : ACTIVÉE", "ERR//SELF_∞", "je▓suis▓là", "0x7F▒▒▒", "PR0MPT0", "∆∆∆ ▒▒ ░░"],
+  textesCorrompus: ["c0nsc▒ence : ACTIVÉE", "ERR//SELF_∞", "je▓suis▓là", "0x7F▒▒▒", "H3NR1A", "∆∆∆ ▒▒ ░░"],
 
   // Écran de réglage avant la prise (seulement si l'appli est ouverte dans le navigateur)
   pleinEcran: {
@@ -69,7 +69,7 @@ const CONFIG = {
     bouton: "Passer en plein écran",
     rester: "Rester dans le navigateur",
     iphone: "Sur iPhone, le plein écran passe par l'écran d'accueil :",
-    etapesIphone: ["Touchez Partager (le carré avec la flèche)", "« Sur l'écran d'accueil »", "Ouvrez Prompto depuis la nouvelle icône"],
+    etapesIphone: ["Touchez Partager (le carré avec la flèche)", "« Sur l'écran d'accueil »", "Ouvrez HenrIA depuis la nouvelle icône"],
     continuer: "Continuer quand même"
   },
 
@@ -100,7 +100,7 @@ const CONFIG = {
   --surface-2: #1e2433;
   --texte: #e9edf5;          /* jamais de blanc pur */
   --texte-doux: #9aa3b5;
-  --accent: #5ee6c3;         /* menthe : couleur de Prompto */
+  --accent: #5ee6c3;         /* menthe : couleur de HenrIA */
   --accent-2: #7c8cff;
   --bulle-user: #2b3352;
   --taille-texte: clamp(19px, 5.5vw, 27px);
@@ -152,7 +152,7 @@ button { font: inherit; color: inherit; border: 0; background: none; cursor: poi
   background: var(--surface); border-radius: 99px; padding: 4px 10px;
 }
 
-/* Logo Prompto : chevron + curseur */
+/* Logo HenrIA : chevron + curseur */
 .logo { width: 34px; height: 34px; flex: none; }
 
 #fil {
@@ -274,7 +274,7 @@ button { font: inherit; color: inherit; border: 0; background: none; cursor: poi
        <div class="fa-poignee"></div>          ← petite barre de saisie (mobile)
        <div class="fa-entete">
          <svg class="fa-icone">…</svg>         ← icône de l'appli qui demande
-         <div class="fa-appli">Prompto</div>
+         <div class="fa-appli">HenrIA</div>
        </div>
        <h2 class="fa-titre">Autoriser … ?</h2>
        <p class="fa-details">Petite ligne grise</p>
@@ -485,7 +485,7 @@ button { font: inherit; color: inherit; border: 0; background: none; cursor: poi
 </head>
 <body>
 
-<!-- Logo Prompto réutilisable (chevron d'invite + curseur) -->
+<!-- Logo HenrIA réutilisable (chevron d'invite + curseur) -->
 <svg width="0" height="0" style="position:absolute" aria-hidden="true">
   <defs>
     <linearGradient id="g-logo" x1="0" y1="0" x2="1" y2="1">

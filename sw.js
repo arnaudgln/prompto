@@ -1,7 +1,7 @@
 // Hors ligne : tout est mis en cache au premier chargement.
 // Ensuite l'appli s'ouvre depuis le cache (instantané, même sans réseau)
 // et se met à jour en arrière-plan quand le réseau est là.
-const CACHE = "prompto-v2";
+const CACHE = "prompto-v3";
 const FICHIERS = ["./", "index.html", "manifest.webmanifest", "icone-180.png", "icone-192.png", "icone-512.png", "icone-maskable-512.png"];
 
 self.addEventListener("install", (e) => {
